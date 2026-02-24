@@ -1,0 +1,44 @@
+---
+title: Inbox and Outbox
+description: Message delivery, reception, and the role of the Shared Inbox in Server-to-Server communication.
+---
+
+In the ActivityPub Server-to-Server (S2S) protocol, the exchange of messages is managed through two primary endpoints: **Inbox** and **Outbox**.
+
+## Message Distribution (Outbox)
+:::note[Deletion and Undoing Activities]
+
+In ActivityPub, there are two primary approaches to handling the removal of content or actions.
+
+##### 1. Delete Activity
+To remove an object or activity that has already been delivered, a `Delete` activity is sent.
+* **Tombstones**: Instead of wiping the data entirely, receiving servers often replace the object with a `Tombstone`. This represents that the ID once existed but is now gone, allowing the server to return a `410 Gone` status for future fetch requests.
+
+##### 2. Undo Activity
+To "take back" a specific action like a `Follow`, `Like`, or `Announce` (boost), the `Undo` activity is used.
+* **Consistency**: The `object` field of the `Undo` must contain the original activity being undone. The receiving server must verify that the actor sending the `Undo` is the same actor who created the original activity.
+:::
+
+In a pure S2S context, the **Outbox** serves as the formal origin or the "sent folder" for an actor's activities. When a server generates a new activity (such as a `Create` or `Announce`), it is conceptually added to the actor's Outbox to represent the actor's history of outgoing actions.
+
+### The Delivery Process
+Once an activity is generated, the server initiates the delivery process to notify relevant peers:
+
+1.  **Identifying Targets**: The server examines the `to`, `cc`, and `audience` fields, as well as the actor’s `followers` list, to determine the `inbox` URLs of the remote recipients.
+2.  **Dispatching**: The server then performs an HTTP POST of the activity to each identified remote `inbox`.
+
+## Receiving Messages (Inbox)
+
+the **Inbox** is the designated endpoint for receiving activities sent by external servers.
+
+1.  **Activity Reception**: An external server POSTs an `Activity` to the actor's `inbox` URL.
+2.  **Verification and Processing**: The receiving server verifies the request's authenticity (e.g., via HTTP Signatures). If valid, the activity is processed—such as being stored in the database or triggering a notification for the local user.
+
+## Shared Inbox
+
+When an actor has a large following (thousands or millions of followers), POSTing to every individual follower's `inbox` creates immense overhead. The **Shared Inbox** optimizes this high-volume delivery.
+
+* **Mechanism**: If multiple followers reside on the same remote instance, the sending server POSTs the activity **only once** to a `sharedInbox` endpoint defined by that instance.
+* **Internal Distribution**: The receiving server accepts the single POST and internally distributes the activity to all relevant local users.
+
+This mechanism significantly reduces network traffic and minimizes CPU/memory usage for both the sending and receiving servers.

@@ -1,0 +1,50 @@
+---
+title: HTTP Signatures
+description: An overview of the HTTP Signature mechanism used to ensure authentication and integrity between ActivityPub servers.
+---
+
+In ActivityPub, **HTTP Signatures** are used to prove the authenticity of the sender. Although the official W3C ActivityPub specification does not describe them in detail, they are an essential element in practical implementations.
+
+## Role of Signatures
+
+When an activity is POSTed to an `inbox`, the receiving server must verify whether the activity was truly created by the originating actor and whether it has been tampered with during transit.
+
+1.  **Authentication**: Confirms which actor sent the request.
+2.  **Integrity**: Ensures that the request body (activity) and headers have not been modified.
+
+## Four Signature Methods
+
+The Fediverse primarily utilizes the following four methods:
+
+### 1. Cavage HTTP Signatures (`Draft`)
+An early draft specification adopted by Mastodon and many other existing implementations.
+- **Features**: Includes `keyId`, `algorithm`, `headers`, and `signature` within the `Signature` header.
+- **Signature Targets**: Typically includes `(request-target)`, `host`, `date`, and `digest` headers.
+- **Note**: This was never formally adopted as an RFC (it was superseded by RFC 9421, explained below), and minor implementation differences regarding strictness may exist.
+
+### 2. HTTP Message Signatures (`RFC 9421`)
+A newly standardized, more rigorous, and flexible signature method.
+
+:::note
+Since RFC 9421 lacks compatibility with many implementations, it is currently recommended to use "Double-Knocking"—falling back to Cavage HTTP Signatures if an RFC 9421 signature is not correctly recognized. (Implementations like Mastodon and Fedify adopt this approach.)
+:::
+
+- **Features**: Uses the `Signature-Input` header in addition to the `Signature` header. It is not compatible with Cavage HTTP Signatures and cannot be used simultaneously.
+
+### 3. Linked Data Signatures 1.0 (`RsaSignature2017`)
+A signature method used when the two HTTP signature methods mentioned above cannot be used, such as when Mastodon accepts activities from relays or executes self-deletion.
+
+### 4. Object Integrity Proofs (`FEP-8b32`)
+
+## Signature Verification Process
+
+When a receiving server verifies a request, it follows these steps:
+
+1.  **Request Parsing**: Retrieves the `keyId` from the `Signature` (or `Signature-Input`) header.
+2.  **Public Key Retrieval**: Fetches the actor's public key (`publicKey`) associated with the `keyId` via a GET request over the network.
+3.  **Signature Verification**: Using the retrieved public key, the server calculates whether the provided signature matches the signature base string reconstructed from the request headers.
+
+## Importance of the Digest Header
+To prevent tampering with the body (JSON data), it is common practice to include a hash of the body in a `Digest` header and include that `Digest` header in the HTTP signature targets.
+
+The coexistence of these signature methods and public key caching strategies are key to a stable federation implementation.
